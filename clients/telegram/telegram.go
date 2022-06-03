@@ -2,6 +2,7 @@ package telegram
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"path"
@@ -35,9 +36,8 @@ func (c *Client)Updates(offset int, limit int)([]Update,error){
 }
 
 
-func (c *Client)DoRequest(method string,query url.Values)([]byte,error){
-
-	const errMsg = "cant do request"
+func (c *Client)DoRequest(method string,query url.Values)(data []byte,err error){
+	defer func(){err = e.WrapIfErr("cant do request",err) }()
 	u:= url.URL{
 		Scheme: "https",
 		Host: c.host,
@@ -45,15 +45,22 @@ func (c *Client)DoRequest(method string,query url.Values)([]byte,error){
 	}
 	req,err := http.NewRequest(http.MethodGet, u.String(),nil)
 	if err != nil{
-		return nil,e.Wrap(errMsg,err)
+		return nil,err
 	}
 
 	req.URL.RawQuery= query.Encode()
 
-	resp,err := http.NewRequest(http.MethodGet, u.String(),nil)
+	resp,err := c.client.Do(req)
 	if err != nil{
-		return nil,e.Wrap(errMsg,err)
+		return nil,err
 	}
+	defer func(){_=resp.Body.Close()
+	}()
+	body,err := io.ReadAll(resp.Body)
+	if err != nil{
+		return nil,err
+	}
+	return body,nil
 }
 
 func (c *Client)SendMessage(){
